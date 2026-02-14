@@ -1,6 +1,6 @@
 # BlenderAgents
 
-A set of 8 Claude Code slash-command agents that automate a Blender-to-Unity pipeline targeting **Meta Quest 2** (100K-300K triangle budget, 100-150 draw calls). Each agent runs as a Claude Code custom command, executing Python in Blender through the Blender MCP server.
+A set of 12 Claude Code slash-command agents that automate a Blender-to-Unity pipeline targeting **Meta Quest 2** (100K-300K triangle budget, 100-150 draw calls). Each agent runs as a Claude Code custom command, executing Python in Blender through the Blender MCP server.
 
 ---
 
@@ -18,9 +18,13 @@ cd E:\coding\BlenderAgents
 
 # Verify structure
 ls .claude/commands/
-# Should show: blender-audit.md  blender-organize.md  blender-uv.md
-#              blender-modifiers.md  blender-materials.md  blender-optimize.md
-#              blender-export.md  blender-addon.md
+# Should show 12 agent files:
+#   blender-addon.md         blender-audit.md
+#   blender-export.md        blender-materials.md
+#   blender-modifiers.md     blender-optimize.md
+#   blender-organize.md      blender-preflight.md
+#   blender-project-setup.md blender-scene-builder.md
+#   blender-uv.md            pipeline-ai-bridge.md
 
 # Start Blender with MCP server running, then:
 claude
@@ -30,10 +34,123 @@ The agents are registered automatically when Claude Code opens in this directory
 
 ---
 
-## Agents
+## Daily Workflow
+
+This is the typical workflow for a 3D artist receiving work assignments:
+
+```
+ Boss assigns work + docs/reference images
+              |
+              v
+     /blender-project-setup        Set up directories, .blend files
+              |
+              v
+     YOU model in Blender           (or /blender-scene-builder helps)
+     YOU do UVs                     (or /blender-uv helps)
+     YOU do materials               (or /blender-materials helps)
+     YOU animate
+              |
+              v
+     /blender-preflight             Validate + auto-fix + export
+              |
+              |--- ERRORS? ---> Fix issues, re-run preflight
+              |--- WARNINGS? -> Your call: export anyway or fix first
+              |--- CLEAN? ----> Auto-exports FBX
+              |
+              v
+     FBX ready for Unity team
+```
+
+### Three Core Agents
+
+| Agent | What It Does | When You Run It |
+|-------|-------------|----------------|
+| `/blender-project-setup` | Creates date-based directories, .blend files, collections, naming | Start of every assignment |
+| `/blender-scene-builder` | Builds 3D content (models, materials, animations, gauges) | When you want Claude to help model |
+| `/blender-preflight` | Validates everything (8 checks) + auto-fixes + exports FBX | When you're done, before sending to Unity |
+
+---
+
+## All Agents
+
+### `/blender-project-setup` — Project Setup & File Organizer
+
+Sets up the workspace for any type of work: quizzes, scenes, environments, props, characters.
+
+**What it does:**
+- Creates date-based directory: `E:\AONIX\Aonix_schoolvr\DD-MM-YYYY\`
+- Creates project directories with correct naming (Q1_, SCN_, PROP_, CHAR_)
+- Creates option/variant subdirectories
+- Creates and configures .blend files (metric units, 30fps, 120 frames, EEVEE, collections)
+- Saves a main .blend (shared base) + individual .blend per option/variant
+
+**Directory structure for quizzes:**
+```
+14-02-2026/
+└── Q1_Conservation_of_Momentum/
+    ├── Q1_Main.blend
+    ├── Option1_Momentum_Conserved/
+    │   ├── Q1_Opt1_Momentum_Conserved.blend
+    │   └── Q1_Opt1_Momentum_Conserved.fbx
+    ├── Option2_Momentum_Lost/
+    │   └── ...
+    └── ...
+```
+
+---
+
+### `/blender-scene-builder` — 3D Scene Builder
+
+Builds actual 3D content in Blender. Handles any type of scene: quiz options, environments, props, physics demos.
+
+**Building blocks included:**
+- Gauge/meter panels (momentum gauges, energy bars, force meters)
+- Correct/wrong indicators (green checkmark, red X mark)
+- Force arrows (configurable direction and length)
+- Spheres, ramps, tracks
+- Standard material palette (12 pre-defined PBR materials)
+- Animation helpers (location, scale, pop-in, gauge steady/decrease/increase)
+
+**Animation timeline:** 120 frames @ 30fps (4 seconds)
+- Frames 1-30: Setup and approach
+- Frames 30-35: Event (collision, interaction)
+- Frames 35-70: Result and gauge change
+- Frames 50-60: Indicator pop-in
+- Frames 70-120: Hold final state
+
+**Output:** Renders preview frames, exports FBX, saves per-option .blend files.
+
+---
+
+### `/blender-preflight` — Pre-Flight Check & Export
+
+The final gatekeeper before export. Runs 8 validation phases in sequence, then exports.
+
+**Phases:**
+1. **Scene Check** — Geometry, transforms, normals, loose verts
+2. **Naming Check** — SM_, MAT_, COL_ prefixes, variant numbering
+3. **UV Check** — UV0 exists, UV1 (lightmap) exists
+4. **Material Check** — No empty slots, no duplicates, texture sizes
+5. **Modifier Check** — Unapplied modifiers, triangulate present
+6. **Budget Check** — Total tris vs 300K, draw calls vs 150
+7. **Export Decision** — Errors block export, warnings are your call
+8. **Export & Report** — FBX with Unity settings + final summary
+
+**Auto-fix capabilities** (safe operations, always asks first):
+- Unapplied transforms (scale, rotation)
+- Missing naming prefixes (SM_, MAT_)
+- Empty material slots
+- Loose vertices
+- Duplicate materials (.001 suffix)
+
+**Will NOT auto-fix** (requires your decision):
+- N-gons, over-budget tris, missing UVs, unapplied modifiers
+
+---
 
 ### `/blender-audit` — Scene Auditor
-Scans every mesh object and reports issues without modifying anything.
+
+Read-only scene analysis. Never modifies anything.
 
 **Checks:**
 - Per-object: vertex/tri/face counts, n-gons, non-manifold edges, loose geometry
@@ -49,10 +166,11 @@ Scans every mesh object and reports issues without modifying anything.
 ---
 
 ### `/blender-organize` — Scene Organizer & Naming
+
 Renames objects, creates collection hierarchy, sets origins, and applies transforms.
 
 **Operations:**
-- Batch rename with prefixes: `SM_` (static mesh), `SK_` (skeletal), `COL_` (collider), etc.
+- Batch rename with prefixes: `SM_` (static mesh), `SK_` (skeletal), `COL_` (collider)
 - Variant numbering (`_01`, `_02`)
 - Syncs mesh data-block names to object names
 - Creates collection hierarchy: Environment/, Props/, Characters/, Lighting/, Colliders/, LODs/
@@ -65,6 +183,7 @@ Renames objects, creates collection hierarchy, sets origins, and applies transfo
 ---
 
 ### `/blender-uv` — UV Unwrapping
+
 Creates and optimizes UV maps for texturing and Unity lightmaps.
 
 **Operations:**
@@ -78,6 +197,7 @@ Creates and optimizes UV maps for texturing and Unity lightmaps.
 ---
 
 ### `/blender-modifiers` — Modifier Manager
+
 Inspects, reorders, adds, and applies modifier stacks.
 
 **Operations:**
@@ -90,6 +210,7 @@ Inspects, reorders, adds, and applies modifier stacks.
 ---
 
 ### `/blender-materials` — Material & Texturing
+
 Creates PBR materials, connects textures, and manages material assignments.
 
 **Operations:**
@@ -104,6 +225,7 @@ Creates PBR materials, connects textures, and manages material assignments.
 ---
 
 ### `/blender-optimize` — Optimization & LOD
+
 Reduces triangle counts and generates LOD meshes.
 
 **Operations:**
@@ -117,7 +239,8 @@ Reduces triangle counts and generates LOD meshes.
 ---
 
 ### `/blender-export` — FBX Export for Unity
-Exports FBX files with Unity-optimized settings.
+
+Fine-grained FBX export control when you need more than what preflight offers.
 
 **Export modes:**
 - Single file (full scene)
@@ -130,6 +253,7 @@ Exports FBX files with Unity-optimized settings.
 ---
 
 ### `/blender-addon` — Blender Addon Builder
+
 Generates complete Blender addon `.py` files with proper structure.
 
 **Capabilities:**
@@ -141,9 +265,20 @@ Generates complete Blender addon `.py` files with proper structure.
 
 ---
 
-## Pipeline Workflow
+### `/pipeline-ai-bridge` — Pipeline AI Bridge
 
-Recommended order for processing a new model:
+Bridges the Pipeline Pro Blender addon with Claude Code for AI-assisted features.
+
+**Capabilities:**
+- Two-way communication: addon requests > Claude > addon responses
+- Polling mechanism for pending requests
+- No API key required (uses Claude Code session directly)
+
+---
+
+## Specialist Agent Pipeline
+
+When you need more control than the three core agents, run specialists individually:
 
 ```
 1. /blender-audit        Scan scene, identify all issues
@@ -186,6 +321,7 @@ Recommended order for processing a new model:
 | COL_   | Collision        | COL_Crate_01      |
 | MAT_   | Material         | MAT_Wood_Dark     |
 | TEX_   | Texture          | TEX_Wood_Dark_BC  |
+| TXT_   | Text/Label       | TXT_GaugeTitle_01 |
 
 ### Texture Map Suffixes
 
@@ -211,6 +347,30 @@ Recommended order for processing a new model:
 | add_leaf_bones        | False           |
 | embed_textures        | True            |
 | path_mode             | COPY            |
+
+---
+
+## Project Structure
+
+```
+BlenderAgents/
+├── CLAUDE.md                           Shared standards for all agents
+├── README.md                           This file
+├── .claude/commands/
+│   ├── blender-project-setup.md        Project Setup & File Organizer
+│   ├── blender-scene-builder.md        3D Scene Builder
+│   ├── blender-preflight.md            Pre-Flight Check & Export
+│   ├── blender-audit.md                Scene Auditor (read-only)
+│   ├── blender-organize.md             Scene Organizer & Naming
+│   ├── blender-uv.md                   UV Unwrapping
+│   ├── blender-materials.md            Material & Texturing
+│   ├── blender-modifiers.md            Modifier Manager
+│   ├── blender-optimize.md             Optimization & LOD
+│   ├── blender-export.md               FBX Export (advanced)
+│   ├── blender-addon.md                Blender Addon Builder
+│   └── pipeline-ai-bridge.md           Pipeline Pro AI Bridge
+└── scripts/                            Generated addon files
+```
 
 ---
 
@@ -263,8 +423,13 @@ Edit any agent's `.md` file. The instructions are plain text that Claude follows
 **Export fails**
 - Verify the export path exists and is writable
 - Check that objects have valid geometry (no zero-face meshes)
-- Run `/blender-audit` first to catch issues
+- Run `/blender-preflight` to catch issues before export
 
 **Modifier apply fails**
 - Some modifiers can't be applied in certain states (e.g., multi-user mesh data)
 - Make the mesh single-user first, or check the error message for specifics
+
+**Preflight blocks export**
+- ERRORS must be fixed before export (n-gons, missing UVs, over budget)
+- WARNINGS are non-blocking — you can choose to export anyway
+- Use the auto-fix option for safe issues (transforms, naming, loose verts)
